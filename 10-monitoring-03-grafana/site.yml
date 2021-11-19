@@ -1,0 +1,85 @@
+---
+- name: Deploy docker containers
+  hosts: localhost
+  vars:
+    container_name: mon01
+  tasks:
+    - name: Create monitor container
+      community.docker.docker_container:
+        name: "{{ container_name }}"
+        container_default_behavior: no_defaults
+        privileged: true
+        volumes:
+          - "/sys/fs/cgroup:/sys/fs/cgroup:ro,z"
+        ports:
+          - "3000:3000"
+          - "9090:9090"
+          - "9100:9100"
+        image: jrei/systemd-centos:8
+
+    - name: register contaner as a host
+      ansible.builtin.add_host:
+        name: "{{ container_name }}"
+        ansible_connection: docker
+        ansible_become_method: su
+
+
+- name: Install Prometheus
+  hosts: all
+  roles:
+    - cloudalchemy.prometheus
+    - cloudalchemy.node_exporter
+    - cloudalchemy.grafana
+
+  post_tasks:
+    - name: disable fs filter for nodeexporter
+      become: true
+      lineinfile:
+        path: /etc/systemd/system/node_exporter.service
+        line: '--collector.filesystem.ignored-fs-types="NOANY" \'
+        insertafter: '^ExecStart='
+      notify: restart node_exporter
+
+    - name: enable EPEL repo
+      become: true
+      dnf:
+        name: epel-release
+        state: present
+
+    - name: install stress / htop
+      become: true
+      dnf:
+        name: "{{ item }}"
+        state: present
+      loop:
+        - stress-ng
+        - htop
+  vars:
+    grafana_security:
+      admin_password: blablabla
+      admin_user: admin
+
+    prometheus_targets:
+      node:
+        - targets:
+            - localhost:9100
+          labels:
+            env: mon01
+
+    grafana_datasources:
+      - name: Prometheus
+        type: prometheus
+        isDefault: true
+        access: server
+        url: 'http://localhost:9090'
+        basicAuth: false
+
+    grafana_alert_notifications:
+      notifiers:
+        - name: My Monitor channel
+          type: telegram
+          uid: telegram
+          is_default: true
+          settings:
+            bottoken: "{{ telegram_bottocken }}"
+            chatid: "{{ telegram_chatid }}"

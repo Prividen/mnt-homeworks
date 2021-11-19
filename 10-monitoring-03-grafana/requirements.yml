@@ -1,0 +1,10 @@
+---
+- src: https://github.com/cloudalchemy/ansible-prometheus.git
+  version: 4.0.0
+  name: cloudalchemy.prometheus
+- src: https://github.com/cloudalchemy/ansible-node-exporter.git
+  version: 2.0.0
+  name: cloudalchemy.node_exporter
+- src: https://github.com/cloudalchemy/ansible-grafana.git
+  version: 0.18.0
+  name: cloudalchemy.grafana
